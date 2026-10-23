@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trans-EnV Demo</title>
+<meta name="description" content="Transform Standard American English into 18 English dialects or ESL learner English with the Trans-EnV guideline pipeline.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f7f8f8;
+    --surface: #ffffff;
+    --surface-2: #f0f3f3;
+    --border: #d9e0e0;
+    --ink: #1b2323;
+    --ink-2: #5d6b6b;
+    --accent: #0f766e;
+    --accent-ink: #ffffff;
+    --accent-soft: #d9f2ee;
+    --add-bg: #b7ecd2; --add-ink: #084c30;
+    --del-bg: #fbd5d0; --del-ink: #7f1d1d;
+    --ok: #0b7a4b; --warn: #b3591f; --err: #a3342a;
+    --radius: 10px;
+    --font: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #111717; --surface: #182020; --surface-2: #1f2a2a; --border: #2e3b3b;
+      --ink: #e8eeee; --ink-2: #9fb0b0;
+      --accent: #2dd4bf; --accent-ink: #062521; --accent-soft: #13393a;
+      --add-bg: #14532d; --add-ink: #bbf7d0;
+      --del-bg: #641e1e; --del-ink: #fecaca;
+      --ok: #4ade80; --warn: #fb923c; --err: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--font); font-size: 15px; line-height: 1.5;
+    color: var(--ink); background: var(--bg);
+    padding: 20px 16px 48px;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  header h1 { font-size: 2rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header .sub { margin: 0 0 6px; }
+  header .lead { margin: 0; color: var(--ink-2); }
+  header .lead .lock { color: var(--ink); }
+
+  /* Backend connection bar */
+  .conn {
+    margin: 18px 0; padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--surface);
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  }
+  .conn label { font-weight: 600; font-size: 0.85rem; white-space: nowrap; }
+  .conn input { flex: 1 1 260px; min-width: 0; }
+  .conn .state { flex-basis: 100%; font-size: 0.85rem; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); flex: none; }
+  .dot.ok { background: var(--ok); }
+  .dot.err { background: var(--err); }
+  .dot.busy { background: var(--warn); }
+  .conn .hint { flex-basis: 100%; font-size: 0.78rem; color: var(--ink-2); margin: -4px 0 0; }
+  .conn code { font-size: 0.8em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+
+  /* Controls */
+  input[type=text], input[type=password], input[type=url], select, textarea {
+    font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; width: 100%;
+  }
+  textarea { resize: vertical; min-height: 110px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--ink); padding: 8px 16px;
+  }
+  button:hover { background: var(--surface-2); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  button.primary:hover { filter: brightness(1.08); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+  .field { margin-bottom: 14px; }
+  .field > label, .field > .lbl { display: block; font-size: 0.8rem; font-weight: 600; color: var(--ink-2); margin-bottom: 5px; }
+  .field .info { font-size: 0.76rem; color: var(--ink-2); margin: 5px 0 0; }
+  .radios { display: flex; flex-wrap: wrap; gap: 6px; }
+  .radios label {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; font-size: 0.9rem; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  }
+  .radios label:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
+  .radios input { margin: 0; accent-color: var(--accent); }
+  .check { display: flex; align-items: flex-start; gap: 8px; font-size: 0.9rem; margin-bottom: 10px; }
+  .check input { margin-top: 4px; accent-color: var(--accent); }
+  .check .info { font-size: 0.76rem; color: var(--ink-2); display: block; }
+  details { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; background: var(--surface); }
+  details summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+  details[open] summary { margin-bottom: 10px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+  .tabs button { border: none; background: none; border-radius: 0; padding: 10px 14px; color: var(--ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button:hover { background: none; color: var(--ink); }
+  .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tabpanel[hidden] { display: none; }
+
+  /* Layout */
+  .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 16px; }
+
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+  .examples button { font-weight: 500; font-size: 0.8rem; padding: 5px 10px; max-width: 100%; text-align: left; }
+  .examples button span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .status { font-size: 0.88rem; color: var(--ink-2); min-height: 1.4em; margin: 12px 0; }
+  .status.err { color: var(--err); }
+
+  /* Result panes */
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 800px) { .panes { grid-template-columns: 1fr; } }
+  .pane { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; background: var(--surface); }
+  .panelabel { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); margin: 0 0 8px; }
+  .sentence { font-size: 1.05rem; line-height: 1.65; margin: 0; overflow-wrap: anywhere; }
+  .sentence.pending { color: var(--ink-2); font-style: italic; }
+  mark.add { background: var(--add-bg); color: var(--add-ink); font-weight: 600; border-radius: 3px; padding: 0 3px; }
+  mark.del { background: var(--del-bg); color: var(--del-ink); border-radius: 3px; padding: 0 3px;
+             text-decoration: line-through; text-decoration-thickness: 1.5px; }
+  .badge { font-size: 0.7rem; border-radius: 999px; padding: 1px 8px; margin-left: 6px; text-transform: none; letter-spacing: 0; }
+  .badge.done { background: var(--accent-soft); color: var(--accent); }
+  .badge.running { background: var(--surface-2); }
+  .chips { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 0.72rem; border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; color: var(--ink-2); }
+
+  /* Rule log */
+  .rulelog { margin-top: 14px; }
+  .rulelog .logcount { font-size: 0.78rem; color: var(--ink-2); margin: 0 0 6px; }
+  .rulelog ul { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; }
+  .rulelog li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; font-size: 0.85rem; border-bottom: 1px dotted var(--border); }
+  .rulelog .icon { width: 1.2em; text-align: center; font-weight: 700; flex: none; }
+  .rulelog li.applied .icon { color: var(--ok); }
+  .rulelog li.nochange { color: var(--ink-2); }
+  .rulelog li.rejected .icon { color: var(--warn); }
+  .rulelog li.error .icon { color: var(--err); }
+  .rulelog li.pending { color: var(--ink-2); opacity: 0.55; }
+  .rulelog .note { color: var(--ink-2); font-size: 0.78rem; }
+
+  .gallery-controls { display: grid; grid-template-columns: auto 1fr 1fr; gap: 14px; align-items: end; margin-bottom: 16px; }
+  @media (max-width: 860px) { .gallery-controls { grid-template-columns: 1fr; } }
+  footer { margin-top: 32px; font-size: 0.8rem; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Trans-EnV</h1>
+    <p class="sub"><b>Trans-EnV: A Framework for Evaluating the Linguistic Robustness of LLMs Against English Varieties</b>
+      (NeurIPS 2025 Datasets and Benchmarks Track) &mdash;
+      <a href="https://arxiv.org/abs/2505.20875" target="_blank" rel="noopener">Paper</a> &middot;
+      <a href="https://github.com/jiyounglee-0523/TransEnV" target="_blank" rel="noopener">Code</a> &middot;
+      <a href="https://huggingface.co/spaces/jiyounglee0523/Trans-EnV-demo" target="_blank" rel="noopener">Hugging&nbsp;Face Space</a></p>
+    <p class="lead">Transform Standard American English into an English variety with the Trans-EnV guideline pipeline:
+      18 English dialects or English as Second Language (ESL) learner English.<br>
+      Bring your own OpenAI, Gemini, or Anthropic API key.<br>
+      <span class="lock">&#128274; API keys are sent only to the provider you choose and are never stored or logged.</span></p>
+  </header>
+
+  <section class="conn" id="conn">
+    <label for="api-url">Backend URL</label>
+    <input id="api-url" type="url" placeholder="https://xxxx.ngrok-free.app" autocomplete="off" spellcheck="false">
+    <button id="connect-btn" type="button">Connect</button>
+    <div class="state"><span class="dot" id="conn-dot"></span><span id="conn-text">Not connected.</span></div>
+    <p class="hint" id="conn-hint">The pipeline runs on a server exposed through ngrok. Paste its public URL here, or open this page with
+      <code>?api=https://&lt;your-tunnel&gt;.ngrok-free.app</code>. The examples gallery works without a backend.</p>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button type="button" class="active" data-tab="live" role="tab">Live transform</button>
+    <button type="button" data-tab="gallery" role="tab">Examples gallery</button>
+  </nav>
+
+  <!-- ===================== Live transform ===================== -->
+  <section class="tabpanel" id="tab-live" role="tabpanel">
+    <div class="grid">
+      <div class="card">
+        <div class="field">
+          <span class="lbl">Provider</span>
+          <div class="radios" id="provider-radios"></div>
+        </div>
+        <div class="field">
+          <label for="model">Model</label>
+          <input id="model" type="text" list="model-list" autocomplete="off" spellcheck="false">
+          <datalist id="model-list"></datalist>
+          <p class="info">Pick from the list or type any model name.</p>
+        </div>
+        <div class="field">
+          <label for="api-key">API key</label>
+          <input id="api-key" type="password" placeholder="sk-..." autocomplete="off">
+          <p class="info">Sent directly to the selected provider for this session's requests only. It is never stored or logged.</p>
+        </div>
+        <div class="field">
+          <span class="lbl">Variety type</span>
+          <div class="radios">
+            <label><input type="radio" name="variety" value="dialect" checked> Dialect</label>
+            <label><input type="radio" name="variety" value="esl"> ESL (L1 transfer)</label>
+          </div>
+        </div>
+        <div class="field" id="f-dialect">
+          <label for="dialect">Dialect</label>
+          <select id="dialect"></select>
+        </div>
+        <div class="field" id="f-l1" hidden>
+          <label for="l1">Native language (L1)</label>
+          <select id="l1"></select>
+        </div>
+        <div class="field" id="f-cefr" hidden>
+          <label for="cefr">CEFR level</label>
+          <select id="cefr"></select>
+          <p class="info" id="cefr-info">Applies randomly sampled CEFR simplification rules before the L1 errors (the full pipeline runs all of them offline).</p>
+        </div>
+        <details>
+          <summary>Advanced</summary>
+          <label class="check"><input type="checkbox" id="shuffle" checked> <span>Shuffle rule order</span></label>
+          <label class="check"><input type="checkbox" id="judge" checked>
+            <span>Semantic-preservation judge<span class="info">Reject a rule's rewrite if the LLM judge finds meaning loss.</span></span></label>
+        </details>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label for="text">Standard American English input</label>
+          <textarea id="text" placeholder="Type or pick an example below…"></textarea>
+        </div>
+        <span class="lbl" style="font-size:.8rem;font-weight:600;color:var(--ink-2)">Examples</span>
+        <div class="examples" id="examples"></div>
+        <div class="actions">
+          <button class="primary" id="go" type="button" disabled>Transform</button>
+          <button id="stop" type="button" hidden>Stop</button>
+        </div>
+        <p class="status" id="status">Connect to a backend to start transforming.</p>
+        <div id="result"></div>
+        <div class="rulelog" id="log"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Examples gallery ===================== -->
+  <section class="tabpanel" id="tab-gallery" role="tabpanel" hidden>
+    <div class="card">
+      <div class="gallery-controls">
+        <div class="field" style="margin:0">
+          <span class="lbl">Variety type</span>
+          <div class="radios">
+            <label><input type="radio" name="gtype" value="dialect" checked> Dialect</label>
+            <label><input type="radio" name="gtype" value="l1"> ESL (L1 &times; CEFR)</label>
+          </div>
+        </div>
+        <div class="field" style="margin:0">
+          <label for="g-variety">Variety</label>
+          <select id="g-variety"></select>
+        </div>
+        <div class="field" style="margin:0">
+          <label for="g-example">Example</label>
+          <select id="g-example"></select>
+        </div>
+      </div>
+      <div id="g-out"><p class="status">Loading gallery…</p></div>
+      <p class="info" style="font-size:.78rem;color:var(--ink-2);margin-top:12px">Pre-transformed GSM8K questions from the released Trans-EnV benchmark.</p>
+    </div>
+  </section>
+
+  <footer>
+    Lee et al., <i>Trans-EnV: A Framework for Evaluating the Linguistic Robustness of LLMs Against English Varieties</i>, NeurIPS 2025. MIT License.
+  </footer>
+</div>
+
+<script>
+/* ------------------------------------------------------------------------
+ * Configuration
+ * --------------------------------------------------------------------- */
+// Hard-code your tunnel here if you have a reserved ngrok domain, e.g.
+// "https://my-demo.ngrok-free.app". Otherwise leave empty: the URL comes
+// from ?api=..., the saved value, or the page's own origin.
+const DEFAULT_API_URL = "";
+const STORAGE_KEY = "transenv.apiUrl";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ------------------------------------------------------------------------
+ * Backend connection
+ * --------------------------------------------------------------------- */
+let apiBase = "";
+let meta = null;
+let controller = null;
+
+function apiHeaders(extra) {
+  // ngrok's free tier shows an interstitial page for browser requests unless
+  // this header is present. Harmless for any other host.
+  return Object.assign({"ngrok-skip-browser-warning": "true"}, extra || {});
+}
+
+function normalizeUrl(u) {
+  u = (u || "").trim();
+  if (!u) return "";
+  if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+  return u.replace(/\/+$/, "");
+}
+
+function setConn(state, text) {
+  $("conn-dot").className = "dot " + state;
+  $("conn-text").textContent = text;
+}
+
+async function connect(url) {
+  url = normalizeUrl(url);
+  if (!url) { setConn("err", "Enter the backend URL first."); return false; }
+  setConn("busy", "Connecting to " + url + " …");
+  $("go").disabled = true;
+  try {
+    const h = await fetch(url + "/api/health", {headers: apiHeaders()});
+    if (!h.ok) throw new Error("HTTP " + h.status);
+    const health = await h.json();
+    if (!health.ok) throw new Error("unexpected health response");
+    const m = await fetch(url + "/api/meta", {headers: apiHeaders()});
+    if (!m.ok) throw new Error("HTTP " + m.status + " on /api/meta");
+    meta = await m.json();
+    apiBase = url;
+    try { localStorage.setItem(STORAGE_KEY, url); } catch (e) {}
+    $("api-url").value = url;
+    populateFromMeta();
+    setConn("ok", "Connected to " + url + " (Trans-EnV " + (meta.version || "") + ")");
+    $("status").textContent = "Ready.";
+    $("status").classList.remove("err");
+    $("go").disabled = false;
+    return true;
+  } catch (e) {
+    apiBase = "";
+    setConn("err", "Could not reach " + url + " (" + e.message + "). Is the server and ngrok tunnel running?");
+    return false;
+  }
+}
+
+$("connect-btn").addEventListener("click", () => connect($("api-url").value));
+$("api-url").addEventListener("keydown", (e) => { if (e.key === "Enter") connect($("api-url").value); });
+
+/* ------------------------------------------------------------------------
+ * Populate controls from /api/meta
+ * --------------------------------------------------------------------- */
+function fillSelect(sel, items, labelFn) {
+  sel.innerHTML = "";
+  items.forEach((it, i) => {
+    const o = document.createElement("option");
+    o.value = typeof it === "string" ? it : it.value;
+    o.textContent = labelFn ? labelFn(it) : (typeof it === "string" ? it : it.label);
+    sel.appendChild(o);
+  });
+}
+
+function currentProvider() {
+  const r = document.querySelector('input[name="provider"]:checked');
+  return r ? r.value : Object.keys(meta.providers)[0];
+}
+
+function onProviderChange() {
+  const p = meta.providers[currentProvider()];
+  const dl = $("model-list");
+  dl.innerHTML = "";
+  p.models.forEach((m) => { const o = document.createElement("option"); o.value = m; dl.appendChild(o); });
+  $("model").value = p.default;
+  $("api-key").placeholder = p.key_hint;
+}
+
+function populateFromMeta() {
+  const radios = $("provider-radios");
+  radios.innerHTML = "";
+  Object.keys(meta.providers).forEach((name, i) => {
+    const l = document.createElement("label");
+    const r = document.createElement("input");
+    r.type = "radio"; r.name = "provider"; r.value = name; r.checked = i === 0;
+    r.addEventListener("change", onProviderChange);
+    l.appendChild(r); l.appendChild(document.createTextNode(" " + name));
+    radios.appendChild(l);
+  });
+  onProviderChange();
+
+  fillSelect($("dialect"), meta.dialects.map((d) => ({value: d.label, label: d.label + " (" + d.rules + " rules)"})));
+  fillSelect($("l1"), meta.l1_languages);
+  fillSelect($("cefr"), meta.cefr_choices);
+  $("cefr-info").textContent = "Applies " + meta.cefr_sample_size +
+    " randomly sampled CEFR simplification rules before the L1 errors (the full pipeline runs all of them offline).";
+
+  const ex = $("examples");
+  ex.innerHTML = "";
+  meta.examples.forEach((t) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.title = t;
+    const s = document.createElement("span"); s.textContent = t; b.appendChild(s);
+    b.addEventListener("click", () => { $("text").value = t; $("text").focus(); });
+    ex.appendChild(b);
+  });
+}
+
+document.querySelectorAll('input[name="variety"]').forEach((r) => r.addEventListener("change", () => {
+  const isDialect = document.querySelector('input[name="variety"]:checked').value === "dialect";
+  $("f-dialect").hidden = !isDialect;
+  $("f-l1").hidden = isDialect;
+  $("f-cefr").hidden = isDialect;
+}));
+
+/* ------------------------------------------------------------------------
+ * Word-level diff (mirrors the Python demo's difflib rendering)
+ * --------------------------------------------------------------------- */
+function wordDiff(a, b) {
+  const A = a.match(/\S+\s*/g) || [], B = b.match(/\S+\s*/g) || [];
+  const wa = A.map((t) => t.trim()), wb = B.map((t) => t.trim());
+  const n = A.length, m = B.length;
+  const dp = Array.from({length: n + 1}, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = wa[i] === wb[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const ops = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (wa[i] === wb[j]) { ops.push(["eq", A[i], B[j]]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push(["del", A[i]]); i++; }
+    else { ops.push(["add", B[j]]); j++; }
+  }
+  while (i < n) ops.push(["del", A[i++]]);
+  while (j < m) ops.push(["add", B[j++]]);
+
+  const mark = (seg, cls) => {
+    if (!seg.trim()) return esc(seg);
+    const body = seg.replace(/\s+$/, ""), tail = seg.slice(body.length);
+    return '<mark class="' + cls + '">' + esc(body) + "</mark>" + esc(tail);
+  };
+  let outA = "", outB = "", k = 0;
+  while (k < ops.length) {
+    if (ops[k][0] === "eq") { outA += esc(ops[k][1]); outB += esc(ops[k][2]); k++; continue; }
+    let segA = "", segB = "";
+    while (k < ops.length && ops[k][0] !== "eq") {
+      if (ops[k][0] === "del") segA += ops[k][1]; else segB += ops[k][1];
+      k++;
+    }
+    outA += mark(segA, "del");
+    outB += mark(segB, "add");
+  }
+  return [outA, outB];
+}
+
+/* ------------------------------------------------------------------------
+ * Rendering
+ * --------------------------------------------------------------------- */
+function panes(leftLabel, leftHtml, rightLabel, rightHtml) {
+  return '<div class="panes">' +
+    '<div class="pane"><p class="panelabel">' + leftLabel + '</p>' + leftHtml + '</div>' +
+    '<div class="pane"><p class="panelabel">' + rightLabel + '</p>' + rightHtml + '</div></div>';
+}
+
+function renderResult(original, transformed, applied, done) {
+  if (done) {
+    const [o, t] = wordDiff(original, transformed);
+    const chips = applied.length
+      ? '<div class="chips">' + applied.map((r) => '<span class="chip">' + esc(r) + "</span>").join("") + "</div>" : "";
+    return panes("Standard American English", '<p class="sentence">' + o + "</p>",
+      'Transformed <span class="badge done">Final</span>', '<p class="sentence">' + t + "</p>" + chips);
+  }
+  return panes("Standard American English", '<p class="sentence">' + esc(original) + "</p>",
+    'Transformed <span class="badge running">Transforming…</span>',
+    '<p class="sentence pending">The transformed sentence will appear once all rules have been checked.</p>');
+}
+
+const ICONS = {applied: "&#10003;", nochange: "&ndash;", rejected: "&#8856;", error: "!", pending: "&middot;"};
+
+function renderLog(entries, total) {
+  const rows = entries.map((e) =>
+    '<li class="' + e.status + '"><span class="icon">' + ICONS[e.status] + '</span>' +
+    '<span class="feat">' + esc(e.feature) + "</span>" +
+    (e.note ? '<span class="note">' + esc(e.note) + "</span>" : "") + "</li>").join("");
+  const checked = entries.filter((e) => e.status !== "pending").length;
+  return '<p class="logcount">' + checked + " / " + total + " rules checked</p><ul>" + rows + "</ul>";
+}
+
+function setStatus(text, isErr) {
+  const s = $("status");
+  s.textContent = text;
+  s.classList.toggle("err", !!isErr);
+}
+
+/* ------------------------------------------------------------------------
+ * Live transform
+ * --------------------------------------------------------------------- */
+async function transform() {
+  if (!apiBase) { setStatus("Connect to a backend first.", true); return; }
+  const text = $("text").value.trim();
+  if (!text) { setStatus("Enter a sentence to transform.", true); return; }
+  const provider = currentProvider();
+  if (!$("api-key").value.trim()) {
+    setStatus("Enter your " + provider + " API key (" + meta.providers[provider].key_hint + ").", true); return;
+  }
+  const payload = {
+    text,
+    variety_type: document.querySelector('input[name="variety"]:checked').value,
+    dialect: $("dialect").value,
+    l1: $("l1").value,
+    cefr: $("cefr").value,
+    provider,
+    model: $("model").value.trim() || meta.providers[provider].default,
+    api_key: $("api-key").value,
+    shuffle_rules: $("shuffle").checked,
+    use_judge: $("judge").checked,
+  };
+
+  controller = new AbortController();
+  $("go").disabled = true; $("stop").hidden = false;
+  $("result").innerHTML = ""; $("log").innerHTML = "";
+  setStatus("Starting…");
+
+  let entries = [], total = 0, original = text, finished = false;
+  const handle = (ev) => {
+    if (ev.type === "start") {
+      total = ev.total; original = ev.original;
+      entries = ev.rules.map((f) => ({feature: f, status: "pending", note: ""}));
+      $("result").innerHTML = renderResult(original, "", [], false);
+      $("log").innerHTML = renderLog(entries, total);
+      setStatus("Applying " + total + " rules with " + ev.model + "…");
+    } else if (ev.type === "rule") {
+      entries[ev.index] = {feature: ev.feature, status: ev.status, note: ev.note || ""};
+      $("log").innerHTML = renderLog(entries, total);
+      const done = entries.filter((e) => e.status !== "pending").length;
+      setStatus("Applying " + total + " rules with " + payload.model + "… (" + done + "/" + total + ")");
+    } else if (ev.type === "done") {
+      finished = true;
+      $("result").innerHTML = renderResult(ev.original, ev.transformed, ev.applied, true);
+      let s = "Done. " + ev.applied.length + " of " + ev.total + " rules applied.";
+      if (ev.errors) s += " (" + ev.errors + " rule" + (ev.errors > 1 ? "s" : "") + " skipped due to API errors.)";
+      setStatus(s);
+    } else if (ev.type === "error") {
+      finished = true;
+      setStatus(ev.message, true);
+    }
+  };
+
+  try {
+    const res = await fetch(apiBase + "/api/transform", {
+      method: "POST",
+      headers: apiHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      let detail = "";
+      try { detail = (await res.json()).detail; } catch (e) {}
+      throw new Error("HTTP " + res.status + (detail ? ": " + JSON.stringify(detail) : ""));
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (line) handle(JSON.parse(line));
+      }
+    }
+    if (buf.trim()) handle(JSON.parse(buf.trim()));
+    if (!finished) setStatus("The stream ended before the pipeline finished.", true);
+  } catch (e) {
+    if (e.name === "AbortError") setStatus("Stopped.");
+    else setStatus("Request failed: " + e.message, true);
+  } finally {
+    controller = null;
+    $("go").disabled = !apiBase; $("stop").hidden = true;
+  }
+}
+
+$("go").addEventListener("click", transform);
+$("stop").addEventListener("click", () => { if (controller) controller.abort(); });
+$("text").addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !$("go").disabled) transform();
+});
+
+/* ------------------------------------------------------------------------
+ * Tabs
+ * --------------------------------------------------------------------- */
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("active", x === b));
+  $("tab-live").hidden = b.dataset.tab !== "live";
+  $("tab-gallery").hidden = b.dataset.tab !== "gallery";
+}));
+
+/* ------------------------------------------------------------------------
+ * Examples gallery (static JSON next to this page; no backend needed)
+ * --------------------------------------------------------------------- */
+const GALLERY_DIALECTS = {
+  "AAVE (Urban African American Vernacular English)": "aave",
+  "Appalachian English": "appalachian",
+  "Australian English": "australian",
+  "Australian Vernacular English": "australian_vernacular",
+  "Bahamian English": "bhamanian",
+  "East Anglian English": "east_anglian",
+  "Irish English": "irish",
+  "Manx English": "manx",
+  "New Zealand English": "new_zealand",
+  "Newfoundland English": "newfoundland",
+  "North of England dialects": "north_england",
+  "Ozark English": "ozark",
+  "Scottish English": "scottish",
+  "Southeast American enclave dialects": "southeast_american",
+  "Southeast of England dialects": "southeast_england",
+  "Southwest of England dialects": "southwest_england",
+  "Tristan da Cunha English": "cunha",
+  "Welsh English": "welsh",
+};
+const L1_NAMES = {arabic: "Arabic", chinese_mandarin: "Chinese-Mandarin", french: "French", german: "German",
+  italian: "Italian", japanese: "Japanese", portuguese: "Portuguese", russian: "Russian", spanish: "Spanish", turkish: "Turkish"};
+let gallery = null;
+let galleryL1 = {};
+
+function galleryType() { return document.querySelector('input[name="gtype"]:checked').value; }
+function galleryPairs() {
+  const v = $("g-variety").value;
+  return galleryType() === "dialect" ? gallery.dialect[GALLERY_DIALECTS[v]] : gallery.l1[galleryL1[v]];
+}
+function onGalleryType() {
+  const labels = galleryType() === "dialect" ? Object.keys(GALLERY_DIALECTS) : Object.keys(galleryL1);
+  fillSelect($("g-variety"), labels);
+  onGalleryVariety();
+}
+function onGalleryVariety() {
+  const pairs = galleryPairs();
+  fillSelect($("g-example"), pairs.map((p, i) => ({value: String(i), label: (i + 1) + ". " + p.o.slice(0, 70).trimEnd() + "…"})));
+  renderGallery();
+}
+function renderGallery() {
+  const pairs = galleryPairs();
+  const p = pairs[Math.max(0, Math.min(pairs.length - 1, parseInt($("g-example").value, 10) || 0))];
+  const [o, t] = wordDiff(p.o, p.t);
+  $("g-out").innerHTML = panes("Standard American English", '<p class="sentence">' + o + "</p>",
+    esc($("g-variety").value), '<p class="sentence">' + t + "</p>");
+}
+
+async function loadGallery() {
+  try {
+    const r = await fetch("gallery_examples.json");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    gallery = await r.json();
+    Object.keys(gallery.l1).sort().forEach((key) => {
+      const [level, lang] = [key.slice(0, key.indexOf("_")), key.slice(key.indexOf("_") + 1)];
+      galleryL1[(L1_NAMES[lang] || lang) + " (CEFR " + level + ")"] = key;
+    });
+    document.querySelectorAll('input[name="gtype"]').forEach((r) => r.addEventListener("change", onGalleryType));
+    $("g-variety").addEventListener("change", onGalleryVariety);
+    $("g-example").addEventListener("change", renderGallery);
+    onGalleryType();
+  } catch (e) {
+    $("g-out").innerHTML = '<p class="status err">Could not load gallery_examples.json (' + esc(e.message) +
+      "). Serve this folder over HTTP (GitHub Pages or <code>python -m http.server</code>).</p>";
+  }
+}
+
+/* ------------------------------------------------------------------------
+ * Startup
+ * --------------------------------------------------------------------- */
+(function init() {
+  loadGallery();
+  const params = new URLSearchParams(location.search);
+  let candidate = params.get("api") || DEFAULT_API_URL;
+  if (!candidate) { try { candidate = localStorage.getItem(STORAGE_KEY) || ""; } catch (e) {} }
+  if (!candidate && /^https?:$/.test(location.protocol) && !/github\.io$/.test(location.hostname)) {
+    // Served by the backend itself (e.g. http://localhost:8000/): use the same origin.
+    candidate = location.origin;
+  }
+  if (candidate) { $("api-url").value = candidate; connect(candidate); }
+})();
+</script>
+</body>
+</html>

@@ -52,22 +52,6 @@
   header .lead { margin: 0; color: var(--ink-2); }
   header .lead .lock { color: var(--ink); }
 
-  /* Backend connection bar */
-  .conn {
-    margin: 18px 0; padding: 12px 14px; border: 1px solid var(--border);
-    border-radius: var(--radius); background: var(--surface);
-    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-  }
-  .conn label { font-weight: 600; font-size: 0.85rem; white-space: nowrap; }
-  .conn input { flex: 1 1 260px; min-width: 0; }
-  .conn .state { flex-basis: 100%; font-size: 0.85rem; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); flex: none; }
-  .dot.ok { background: var(--ok); }
-  .dot.err { background: var(--err); }
-  .dot.busy { background: var(--warn); }
-  .conn .hint { flex-basis: 100%; font-size: 0.78rem; color: var(--ink-2); margin: -4px 0 0; }
-  .conn code { font-size: 0.8em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
-
   /* Controls */
   input[type=text], input[type=password], input[type=url], select, textarea {
     font: inherit; color: var(--ink); background: var(--surface);
@@ -168,16 +152,7 @@
       <span class="lock">&#128274; API keys are sent only to the provider you choose and are never stored or logged.</span></p>
   </header>
 
-  <section class="conn" id="conn">
-    <label for="api-url">Backend URL</label>
-    <input id="api-url" type="url" placeholder="https://xxxx.ngrok-free.app" autocomplete="off" spellcheck="false">
-    <button id="connect-btn" type="button">Connect</button>
-    <div class="state"><span class="dot" id="conn-dot"></span><span id="conn-text">Not connected.</span></div>
-    <p class="hint" id="conn-hint">The pipeline runs on a server exposed through ngrok. Paste its public URL here, or open this page with
-      <code>?api=https://&lt;your-tunnel&gt;.ngrok-free.app</code>. The examples gallery works without a backend.</p>
-  </section>
-
-  <nav class="tabs" role="tablist">
+  <nav class="tabs" role="tablist" style="margin-top:18px">
     <button type="button" class="active" data-tab="live" role="tab">Live transform</button>
     <button type="button" data-tab="gallery" role="tab">Examples gallery</button>
   </nav>
@@ -240,7 +215,7 @@
           <button class="primary" id="go" type="button" disabled>Transform</button>
           <button id="stop" type="button" hidden>Stop</button>
         </div>
-        <p class="status" id="status">Connect to a backend to start transforming.</p>
+        <p class="status" id="status">Connecting…</p>
         <div id="result"></div>
         <div class="rulelog" id="log"></div>
       </div>
@@ -281,9 +256,10 @@
 /* ------------------------------------------------------------------------
  * Configuration
  * --------------------------------------------------------------------- */
-// Hard-code your tunnel here if you have a reserved ngrok domain, e.g.
-// "https://my-demo.ngrok-free.app". Otherwise leave empty: the URL comes
-// from ?api=..., the saved value, or the page's own origin.
+// Backend (ngrok) URL. Set this to your reserved ngrok domain, e.g.
+// "https://my-demo.ngrok-free.app", so the page connects on its own.
+// It can also be given per visit with ?api=https://... (remembered in the
+// browser), and defaults to the page's own origin when served by the server.
 const DEFAULT_API_URL = "";
 const STORAGE_KEY = "transenv.apiUrl";
 
@@ -310,15 +286,10 @@ function normalizeUrl(u) {
   return u.replace(/\/+$/, "");
 }
 
-function setConn(state, text) {
-  $("conn-dot").className = "dot " + state;
-  $("conn-text").textContent = text;
-}
-
 async function connect(url) {
   url = normalizeUrl(url);
-  if (!url) { setConn("err", "Enter the backend URL first."); return false; }
-  setConn("busy", "Connecting to " + url + " …");
+  if (!url) { setStatus("No backend configured. The examples gallery still works.", true); return false; }
+  setStatus("Connecting to the backend…");
   $("go").disabled = true;
   try {
     const h = await fetch(url + "/api/health", {headers: apiHeaders()});
@@ -330,22 +301,16 @@ async function connect(url) {
     meta = await m.json();
     apiBase = url;
     try { localStorage.setItem(STORAGE_KEY, url); } catch (e) {}
-    $("api-url").value = url;
     populateFromMeta();
-    setConn("ok", "Connected to " + url + " (Trans-EnV " + (meta.version || "") + ")");
-    $("status").textContent = "Ready.";
-    $("status").classList.remove("err");
+    setStatus("Ready.");
     $("go").disabled = false;
     return true;
   } catch (e) {
     apiBase = "";
-    setConn("err", "Could not reach " + url + " (" + e.message + "). Is the server and ngrok tunnel running?");
+    setStatus("The demo server is not reachable right now (" + e.message + "). The examples gallery still works.", true);
     return false;
   }
 }
-
-$("connect-btn").addEventListener("click", () => connect($("api-url").value));
-$("api-url").addEventListener("keydown", (e) => { if (e.key === "Enter") connect($("api-url").value); });
 
 /* ------------------------------------------------------------------------
  * Populate controls from /api/meta
@@ -494,7 +459,7 @@ function setStatus(text, isErr) {
  * Live transform
  * --------------------------------------------------------------------- */
 async function transform() {
-  if (!apiBase) { setStatus("Connect to a backend first.", true); return; }
+  if (!apiBase) { setStatus("The demo server is not reachable right now.", true); return; }
   const text = $("text").value.trim();
   if (!text) { setStatus("Enter a sentence to transform.", true); return; }
   const provider = currentProvider();
@@ -678,7 +643,8 @@ async function loadGallery() {
     // Served by the backend itself (e.g. http://localhost:8000/): use the same origin.
     candidate = location.origin;
   }
-  if (candidate) { $("api-url").value = candidate; connect(candidate); }
+  if (candidate) connect(candidate);
+  else setStatus("No backend configured. The examples gallery still works.", true);
 })();
 </script>
 </body>

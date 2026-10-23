@@ -64,15 +64,17 @@ ngrok's interstitial page.
    Branch: `main`, Folder: **`/docs`**.
 3. Open `https://<user>.github.io/<repo>/`.
 
-Visitors enter the ngrok URL in the **Backend URL** box (it is remembered in
-the browser), or you share a link that fills it in:
+The page has no backend-URL input. It finds the backend in this order:
 
-```
-https://<user>.github.io/<repo>/?api=https://xxxx.ngrok-free.app
-```
+1. `?api=https://xxxx.ngrok-free.app` in the link you share (remembered in the
+   visitor's browser afterwards):
+   `https://<user>.github.io/<repo>/?api=https://xxxx.ngrok-free.app`
+2. `DEFAULT_API_URL` at the top of the script in `docs/index.html`. Set it to a
+   reserved ngrok domain so the published page connects on its own.
+3. The page's own origin, when it is served by the backend itself.
 
-If you have a reserved ngrok domain, set `DEFAULT_API_URL` at the top of the
-script in `docs/index.html` so the page connects automatically.
+While the backend is unreachable the Live transform tab shows a notice and the
+examples gallery keeps working.
 
 ## API
 

@@ -6,7 +6,7 @@ services:
     container_name: jylee_transenv_frontend_proxy
     working_dir: /workspace/TransEnV_Demo
     volumes:
-      - /home/demo/TransEnV_Demo:/workspace/TransEnV_Demo
+      - /workplace/jylee/TransEnV_Demo:/workspace/TransEnV_Demo
       - ~/.ssh:/root/.ssh:ro
     ports:
       - "127.0.0.1:10078:10078"

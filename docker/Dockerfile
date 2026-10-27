@@ -1,5 +1,5 @@
 # Use the official PyTorch 2.0.1 image
-FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+FROM python:3.11-slim
 
 # Set the working directory
 WORKDIR /workspace/TransEnV_Demo

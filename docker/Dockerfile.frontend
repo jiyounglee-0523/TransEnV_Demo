@@ -1,0 +1,20 @@
+# Lightweight image for the frontend proxy server (no GPU required)
+FROM python:3.11-slim
+
+# Set the working directory
+WORKDIR /workspace/TransEnV_Demo
+
+# Install ssh tunneling and debugging tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    vim \
+    curl \
+    openssh-client \
+    autossh \
+    lsof \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install packages
+COPY requirements_proxy.txt .
+RUN pip install --no-cache-dir -r requirements_proxy.txt
+RUN rm requirements_proxy.txt

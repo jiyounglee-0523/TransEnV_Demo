@@ -11,48 +11,47 @@ The demo is split in two parts:
 | Part | Where it runs | Folder |
 | --- | --- | --- |
 | Web UI (static HTML + JS) | GitHub Pages | `docs/` |
-| Pipeline API (FastAPI) | your machine, exposed with ngrok | `server/` |
+| Pipeline API (FastAPI) | backend server, reached through a proxy + ngrok | `backend/` |
 
-The page on GitHub Pages talks to the API through the ngrok tunnel URL. The
-**Examples gallery** tab (pre-transformed GSM8K questions) is fully static and
-works without a backend.
+```
+GitHub Pages (docs/) ──> ngrok url ──> proxy.py (frontend host :10078) ──> ssh tunnel :10077 ══> backend main.py (:10078)
+```
+
+The **Examples gallery** tab (pre-transformed GSM8K questions) is fully static
+and works without a backend.
 
 ## 1. Run the backend
 
-```bash
-python -m venv .venv
-.venv/bin/pip install -r server/requirements.txt
-.venv/bin/python server/app.py            # http://localhost:8000
-```
-
-`http://localhost:8000/` serves the same UI as GitHub Pages, so you can test
-everything locally before publishing.
-
-## 2. Expose it with ngrok
-
-Sign up at https://ngrok.com, get an authtoken, then either
+On the backend host (inside the GPU image, or any Python env with
+`docker/requirements.txt`):
 
 ```bash
-# a) pyngrok (no CLI install needed)
-export NGROK_AUTHTOKEN=<your token>
-.venv/bin/python server/app.py --ngrok
+# docker-compose (runs ./run_backend.sh 0.0.0.0 10078 --foreground)
+cd docker && docker build -t jylee_transenv . && cd ..
+docker compose -f docker/docker-compose-backend.yml up -d
+
+# or manually (background, logs in logs/backend.out)
+./run_backend.sh 0.0.0.0 10078
 ```
 
-or
+Environment variables: `CORS_ORIGINS` (comma-separated, default `*`).
+
+## 2. Run the proxy and ngrok
+
+On the frontend host the proxy forwards ngrok traffic through an ssh tunnel to
+the backend and streams the NDJSON responses back unbuffered.
 
 ```bash
-# b) ngrok CLI
-ngrok config add-authtoken <your token>
-server/run.sh
+# docker-compose (runs edlab_frontend_server.sh: autossh tunnel + proxy in the foreground)
+cd docker && docker build -f Dockerfile.frontend -t jylee_transenv_frontend_proxy_img . && cd ..
+docker compose -f docker/docker-compose-frontend.yml up -d
+
+# or manually
+./run_proxy_server.sh 0.0.0.0 10078 http://127.0.0.1:10077
+
+# expose the proxy port with ngrok (logs in logs/ngrok.out)
+./run_ngrok.sh 10078 <ngrok_config.yml>
 ```
-
-Both print a public URL such as `https://xxxx.ngrok-free.app`. Options:
-
-- `--ngrok-domain my-demo.ngrok-free.app` (or `NGROK_DOMAIN=...`): use a
-  reserved domain so the URL stays the same across restarts. Free ngrok
-  accounts get one static domain.
-- `--pages-url https://<user>.github.io/<repo>/` (or `PAGES_URL=...`): print a
-  ready-to-share link that pre-fills the backend URL.
 
 The UI sends the `ngrok-skip-browser-warning` header, so visitors never see
 ngrok's interstitial page.
@@ -64,14 +63,12 @@ ngrok's interstitial page.
    Branch: `main`, Folder: **`/docs`**.
 3. Open `https://<user>.github.io/<repo>/`.
 
-The page has no backend-URL input. It finds the backend in this order:
+The page finds the backend in this order:
 
-1. `?api=https://xxxx.ngrok-free.app` in the link you share (remembered in the
-   visitor's browser afterwards):
-   `https://<user>.github.io/<repo>/?api=https://xxxx.ngrok-free.app`
-2. `DEFAULT_API_URL` at the top of the script in `docs/index.html`. Set it to a
-   reserved ngrok domain so the published page connects on its own.
-3. The page's own origin, when it is served by the backend itself.
+1. `?api=https://xxxx.ngrok-free.dev` in the page URL.
+2. `window.TRANSENV_API_BASE`, if set before the script runs.
+3. The default in `API_BASE` at the top of the script in `docs/index.html`.
+   Set it to your ngrok domain; update it whenever the ngrok URL changes.
 
 While the backend is unreachable the Live transform tab shows a notice and the
 examples gallery keeps working.
@@ -110,12 +107,16 @@ never stored or logged.
 ├── docs/
 │   ├── index.html             # GitHub Pages UI
 │   └── gallery_examples.json  # static examples gallery data
-└── server/
-    ├── app.py                 # FastAPI backend + pipeline (port of TransEnV/demo)
-    ├── run.sh                 # start server + ngrok CLI
-    ├── requirements.txt
-    ├── assets/                # guidelines, eWAVE features, CEFR feature lists
-    └── src/                   # registry (prompts, L1 error lists) and guideline utils
+├── backend/
+│   ├── main.py                # FastAPI backend + pipeline (port of TransEnV/demo)
+│   ├── proxy.py               # aiohttp reverse proxy (ngrok -> ssh tunnel -> backend)
+│   ├── assets/                # guidelines, eWAVE features, CEFR feature lists
+│   └── src/                   # registry (prompts, L1 error lists) and guideline utils
+├── docker/                    # backend (GPU) and frontend proxy images + compose files
+├── run_backend.sh             # uvicorn main:app [--foreground]
+├── run_proxy_server.sh        # proxy.py [--foreground]
+├── run_ngrok.sh               # ngrok http <port> --config <file>
+└── edlab_frontend_server.sh   # autossh tunnel + proxy (frontend container entrypoint)
 ```
 
 ## Citation

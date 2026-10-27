@@ -1,6 +1,40 @@
-.venv/
+# Python cache
 __pycache__/
 *.pyc
+
+# Temporary, env, or junk files
+.junk/
+.DS_Store
+.out
+.whl
 .env
-.claude/
-ngrok.log
+.pypirc
+.vscode
+*claude*
+*CLAUDE*
+*edlab*
+
+# Logs and unnecessary folders
+logs/
+junk/
+json*/
+src/crawling
+src/plotting
+results/
+hospital_data/
+dist/
+legacy/
+new/*
+demo_logs/users
+
+# Data and configuration folders
+data/
+.vscode/launch.json
+output/*
+fhir_data/*
+synthetic_data*/*
+adminsim-arena/
+adminsim-human-eval/
+*.pth
+*.db
+*.pt

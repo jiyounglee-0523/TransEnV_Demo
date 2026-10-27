@@ -256,12 +256,14 @@
 /* ------------------------------------------------------------------------
  * Configuration
  * --------------------------------------------------------------------- */
-// Backend (ngrok) URL. Set this to your reserved ngrok domain, e.g.
-// "https://my-demo.ngrok-free.app", so the page connects on its own.
-// It can also be given per visit with ?api=https://... (remembered in the
-// browser), and defaults to the page's own origin when served by the server.
-const DEFAULT_API_URL = "";
-const STORAGE_KEY = "transenv.apiUrl";
+// The page is static (GitHub Pages); the transformation runs on the backend
+// (backend/app.py) exposed through ngrok.
+// Backend base URL priority: ?api=<url>  >  window.TRANSENV_API_BASE  >  default.
+const API_BASE = (
+  new URLSearchParams(location.search).get("api") ||
+  window.TRANSENV_API_BASE ||
+  "https://YOUR-NGROK-DOMAIN.ngrok-free.dev"
+).replace(/\/+$/, "");
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -300,7 +302,6 @@ async function connect(url) {
     if (!m.ok) throw new Error("HTTP " + m.status + " on /api/meta");
     meta = await m.json();
     apiBase = url;
-    try { localStorage.setItem(STORAGE_KEY, url); } catch (e) {}
     populateFromMeta();
     setStatus("Ready.");
     $("go").disabled = false;
@@ -636,15 +637,7 @@ async function loadGallery() {
  * --------------------------------------------------------------------- */
 (function init() {
   loadGallery();
-  const params = new URLSearchParams(location.search);
-  let candidate = params.get("api") || DEFAULT_API_URL;
-  if (!candidate) { try { candidate = localStorage.getItem(STORAGE_KEY) || ""; } catch (e) {} }
-  if (!candidate && /^https?:$/.test(location.protocol) && !/github\.io$/.test(location.hostname)) {
-    // Served by the backend itself (e.g. http://localhost:8000/): use the same origin.
-    candidate = location.origin;
-  }
-  if (candidate) connect(candidate);
-  else setStatus("No backend configured. The examples gallery still works.", true);
+  connect(API_BASE);
 })();
 </script>
 </body>

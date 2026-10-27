@@ -1,22 +1,25 @@
-"""Trans-EnV demo API server.
+"""Trans-EnV demo REST backend for the static (GitHub Pages) frontend in docs/.
 
-A FastAPI backend that runs the Trans-EnV guideline pipeline rule by rule and
-streams progress to the static web UI in ``docs/`` (hosted on GitHub Pages).
-Expose it to the internet with ngrok so the GitHub Pages site can call it.
+Runs the Trans-EnV guideline pipeline rule by rule and streams progress to the UI.
 
-Run:
-    python server/app.py                 # http://localhost:8000
-    python server/app.py --ngrok         # + public ngrok tunnel (needs NGROK_AUTHTOKEN)
+Request path in production:
+    browser (docs/index.html) -> ngrok -> proxy.py (frontend host) -> ssh tunnel -> this server (backend host)
+
+Run with:  ./run_backend.sh <host> <port> [--foreground]
+           ./run_proxy_server.sh <host> <port> <backend_url> [--foreground]
+           ./run_ngrok.sh <port> <ngrok_config>
+
+Environment variables:
+    CORS_ORIGINS   comma-separated allowed origins (default "*")
 
 Endpoints:
-    GET  /api/health      liveness check used by the UI's "Connect" button
+    GET  /api/health      liveness check used by the UI on load
     GET  /api/meta        dialects, L1 languages, CEFR levels, providers, examples
     POST /api/transform   NDJSON stream of rule-by-rule events
-    GET  /                the docs/ UI (same page as GitHub Pages), if present
 """
 
-import argparse
 import json
+import logging
 import os
 import random
 import re
@@ -28,13 +31,20 @@ import pandas as pd
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parent
-DOCS = ROOT.parent / "docs"
 sys.path.insert(0, str(ROOT / "src"))
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+_logger = logging.getLogger("transenv.backend")
+
+CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
 
 from registry.guidline import L1_GRAMMARERROR                      # noqa: E402
 from registry.prompt import return_system_message, semantic_check  # noqa: E402
@@ -340,14 +350,15 @@ class TransformRequest(BaseModel):
 
 app = FastAPI(title="Trans-EnV demo API", version=VERSION)
 
-# The UI is served from a different origin (GitHub Pages), so allow any origin.
-# "*" also covers the ngrok-skip-browser-warning header the UI sends.
+# The UI is served from a different origin (GitHub Pages).
+# allow_headers="*" also covers the ngrok-skip-browser-warning header the UI sends.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+_logger.info("Backend starts up! (version: %s, CORS origins: %s)", VERSION, CORS_ORIGINS)
 
 
 @app.get("/api/health")
@@ -373,6 +384,9 @@ def meta():
 
 @app.post("/api/transform")
 def transform(req: TransformRequest):
+    _logger.info("Transform request (type: %s, provider: %s, model: %s)",
+                 req.variety_type, req.provider, req.model)
+
     def stream():
         for event in run_transform(req):
             yield json.dumps(event, ensure_ascii=False) + "\n"
@@ -382,59 +396,3 @@ def transform(req: TransformRequest):
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-
-
-if DOCS.is_dir():
-    # Serve the same static UI as GitHub Pages, so http://localhost:8000/ (or the
-    # ngrok URL) opens the demo directly during local development.
-    app.mount("/", StaticFiles(directory=str(DOCS), html=True), name="docs")
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-def open_ngrok_tunnel(port, domain=None):
-    """Open an ngrok tunnel via pyngrok and return its public https URL."""
-    from pyngrok import conf, ngrok
-
-    token = os.environ.get("NGROK_AUTHTOKEN")
-    if token:
-        conf.get_default().auth_token = token
-    # ngrok agent v3 endpoints are https-only by default, so no scheme option
-    # is needed (the legacy bind_tls option is rejected by current agents).
-    # A reserved domain is requested through the endpoint URL.
-    kwargs = {}
-    if domain:
-        kwargs["url"] = domain if "://" in domain else f"https://{domain}"
-    return ngrok.connect(port, **kwargs).public_url
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--ngrok", action="store_true",
-                        help="also open a public ngrok tunnel (uses NGROK_AUTHTOKEN)")
-    parser.add_argument("--ngrok-domain", default=os.environ.get("NGROK_DOMAIN"),
-                        help="reserved ngrok domain, e.g. my-demo.ngrok-free.app")
-    parser.add_argument("--pages-url", default=os.environ.get("PAGES_URL"),
-                        help="GitHub Pages URL of docs/, to print a ready-to-share link")
-    args = parser.parse_args()
-
-    if args.ngrok:
-        public_url = open_ngrok_tunnel(args.port, args.ngrok_domain)
-        print("\n" + "=" * 72)
-        print(f"  ngrok tunnel:   {public_url}")
-        print(f"  demo (direct):  {public_url}/")
-        if args.pages_url:
-            print(f"  demo (Pages):   {args.pages_url.rstrip('/')}/?api={public_url}")
-        else:
-            print("  Paste the tunnel URL into the 'Backend URL' box on the GitHub Pages")
-            print("  site, or share <pages-url>/?api=" + public_url)
-        print("=" * 72 + "\n")
-
-    uvicorn.run(app, host=args.host, port=args.port)

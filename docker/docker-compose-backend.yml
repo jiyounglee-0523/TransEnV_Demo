@@ -1,0 +1,20 @@
+name: jylee_transenv_backend_server
+
+services:
+  backend:
+    image: jylee_transenv
+    container_name: jylee_transenv_backend
+    working_dir: /workspace/TransEnV_Demo
+    volumes:
+      - /home/demo/TransEnV_Demo:/workspace/TransEnV_Demo
+    ports:
+      - "127.0.0.1:10078:10078"
+    command: bash ./run_backend.sh 0.0.0.0 10078 --foreground
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]

@@ -1,0 +1,14 @@
+name: jylee_transenv_frontend_proxy_server
+
+services:
+  frontend:
+    image: jylee_transenv_frontend_proxy_img
+    container_name: jylee_transenv_frontend_proxy
+    working_dir: /workspace/TransEnV_Demo
+    volumes:
+      - /home/demo/TransEnV_Demo:/workspace/TransEnV_Demo
+      - ~/.ssh:/root/.ssh:ro
+    ports:
+      - "127.0.0.1:10078:10078"
+    command: bash ./edlab_frontend_server.sh
+    restart: unless-stopped

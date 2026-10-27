@@ -3,4 +3,3 @@ uvicorn>=0.29
 openai>=1.0
 anthropic
 pandas
-pyngrok>=7.0
